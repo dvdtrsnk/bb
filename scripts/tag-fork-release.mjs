@@ -23,6 +23,25 @@ function git(args) {
   return execFileSync("git", args, { cwd: repoRoot, encoding: "utf8" }).trim();
 }
 
+const VERSION_FILE_PATHS = [
+  "packages/bb-app/package.json",
+  "apps/desktop/package.json",
+];
+
+function commitPendingVersionBump(version) {
+  const changedFiles = git(["diff", "--name-only", "--", ...VERSION_FILE_PATHS])
+    .split("\n")
+    .filter((line) => line !== "");
+  if (changedFiles.length === 0) {
+    return false;
+  }
+
+  git(["add", ...VERSION_FILE_PATHS]);
+  git(["commit", "-m", `Bump fork version to ${version}`]);
+  console.log(`Committed version bump to ${version}.`);
+  return true;
+}
+
 async function main() {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
     console.log(USAGE);
@@ -42,9 +61,13 @@ async function main() {
     throw new Error(`Tag ${tag} already exists.`);
   }
 
+  commitPendingVersionBump(version);
+
   git(["tag", "-a", tag, "-m", `Fork release ${version}`]);
   console.log(`Created tag ${tag} on the current commit.`);
-  console.log(`Push it to trigger the fork publish workflow:\n  git push origin ${tag}`);
+  console.log(
+    `Push the commit and tag to trigger the fork publish workflow:\n  git push origin HEAD ${tag}`,
+  );
 }
 
 main().catch((error) => {
