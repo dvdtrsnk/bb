@@ -183,6 +183,8 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
     performanceDiagnosticsAvailable: serverConfig.BB_PERF_DIAGNOSTICS,
     serverPort: serverConfig.BB_SERVER_PORT,
     sharedSkillRoots: { user: [], project: [] },
+    updateNpmPackage: serverConfig.BB_UPDATE_NPM_PACKAGE,
+    updateNpmDistTag: serverConfig.BB_UPDATE_NPM_DIST_TAG ?? null,
   };
 
   const providerRegistry = createProviderRegistryService({

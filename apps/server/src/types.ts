@@ -36,6 +36,8 @@ export interface ServerRuntimeConfig {
   marketplaceUrl: string;
   serverPort: number;
   sharedSkillRoots: ProviderNativeSkillRoots;
+  updateNpmPackage: string;
+  updateNpmDistTag: string | null;
   appUrl?: string;
   devAppPort?: number;
   launchId?: string;

@@ -268,6 +268,20 @@ export const BB_EXTERNAL_URL_ENV = defineEnvVar<string>({
   parse: parseOptionalUrlEnvValue,
 });
 
+export const BB_UPDATE_NPM_PACKAGE_ENV = defineEnvVar<string>({
+  description:
+    "npm package name the server checks for update availability, and that upgradeCommand tells the user to install. Defaults to bb-app; point it at a fork's own published package to surface that fork's releases instead.",
+  name: "BB_UPDATE_NPM_PACKAGE",
+  parse: parseNonEmptyStringEnvValue,
+});
+
+export const BB_UPDATE_NPM_DIST_TAG_ENV = defineEnvVar<string>({
+  description:
+    "npm dist-tag the server treats as the latest version when checking for updates. Unset, the server checks latest (or nightly and latest for a nightly build); set to a fork's own dist-tag (e.g. fork) together with BB_UPDATE_NPM_PACKAGE to track only that fork's release channel.",
+  name: "BB_UPDATE_NPM_DIST_TAG",
+  parse: parseNonEmptyStringEnvValue,
+});
+
 export const BB_MARKETPLACE_URL_ENV = defineEnvVar<string>({
   description:
     "Manifest URL of the reserved bb-community plugin marketplace, which lists as BB Community. Point it at a local file server to test catalog refreshes.",
@@ -411,6 +425,7 @@ export const DEFAULT_BB_POSTHOG_API_KEY =
   "phc_tejoYoNLV6vG8QAd5eYXXvcsENFYnP4brpZDGqG7zvpy";
 export const DEFAULT_BB_TELEMETRY = true;
 export const DEFAULT_BB_DEV_APP_HOST = "";
+export const DEFAULT_BB_UPDATE_NPM_PACKAGE = "bb-app";
 export const DEFAULT_BB_MARKETPLACE_URL =
   "https://getbb.app/marketplace/v2/marketplace.json";
 export const DEFAULT_BB_FF_PLACEHOLDER = defaultFeatureFlags.placeholder;

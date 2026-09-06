@@ -5,12 +5,25 @@ import { isNightlyAppVersion } from "@bb/config/app-update";
 import type { SystemVersionResponse } from "@bb/server-contract";
 import type { ServerLogger, ServerRuntimeConfig } from "../../types.js";
 
-const NPM_REGISTRY_PACKAGE_URL = "https://registry.npmjs.org/bb-app";
+const NPM_REGISTRY_BASE_URL = "https://registry.npmjs.org";
 const NPM_LATEST_TIMEOUT_MS = 5_000;
 const NPM_LATEST_CACHE_TTL_MS = 60 * 60 * 1000;
 
 function resolveDistTag(appVersion: string): "latest" | "nightly" {
   return isNightlyAppVersion(appVersion) ? "nightly" : "latest";
+}
+
+type NpmChannel =
+  | { kind: "configured"; distTag: string }
+  | { kind: "automatic"; distTag: "latest" | "nightly" };
+
+function resolveNpmChannel(
+  config: Pick<ServerRuntimeConfig, "appVersion" | "updateNpmDistTag">,
+): NpmChannel {
+  if (config.updateNpmDistTag !== null) {
+    return { kind: "configured", distTag: config.updateNpmDistTag };
+  }
+  return { kind: "automatic", distTag: resolveDistTag(config.appVersion) };
 }
 
 const npmLatestResponseSchema = z
@@ -32,17 +45,18 @@ interface AppVersionGetSystemVersionArgs {
 interface CreateAppVersionServiceArgs {
   installKind: AppInstallKind | null;
   sourceCommit: string | null;
-  config: Pick<ServerRuntimeConfig, "appVersion" | "isDevelopment">;
+  config: Pick<
+    ServerRuntimeConfig,
+    "appVersion" | "isDevelopment" | "updateNpmPackage" | "updateNpmDistTag"
+  >;
   fetchImpl?: typeof fetch;
   logger: ServerLogger;
   cacheTtlMs?: number;
   now?: () => number;
 }
 
-type NpmDistTag = "latest" | "nightly";
-
 interface NpmLatestRelease {
-  distTag: NpmDistTag;
+  distTag: string;
   version: string;
 }
 
@@ -60,13 +74,14 @@ export function createAppVersionService(
   const config = args.config;
   const installKind = args.installKind;
   const sourceCommit = args.sourceCommit;
-  const distTag = resolveDistTag(config.appVersion);
+  const channel = resolveNpmChannel(config);
+  const npmPackage = config.updateNpmPackage;
 
   let cache: NpmLatestCacheEntry | null = null;
   let inflight: Promise<NpmLatestRelease | null> | null = null;
 
-  async function fetchNpmDistTag(tag: NpmDistTag): Promise<string | null> {
-    const npmDistTagUrl = `${NPM_REGISTRY_PACKAGE_URL}/${tag}`;
+  async function fetchNpmDistTag(tag: string): Promise<string | null> {
+    const npmDistTagUrl = `${NPM_REGISTRY_BASE_URL}/${npmPackage}/${tag}`;
     const controller = new AbortController();
     const timeoutHandle = setTimeout(
       () => controller.abort(),
@@ -107,9 +122,9 @@ export function createAppVersionService(
   }
 
   async function fetchNpmLatest(): Promise<NpmLatestRelease | null> {
-    if (distTag === "latest") {
-      const version = await fetchNpmDistTag("latest");
-      return version === null ? null : { distTag: "latest", version };
+    if (channel.kind === "configured" || channel.distTag === "latest") {
+      const version = await fetchNpmDistTag(channel.distTag);
+      return version === null ? null : { distTag: channel.distTag, version };
     }
     const [nightly, latest] = await Promise.all([
       fetchNpmDistTag("nightly"),
@@ -170,7 +185,7 @@ export function createAppVersionService(
         source: "npm",
         updateAvailable: false,
         isDevelopment: config.isDevelopment,
-        upgradeCommand: `npx bb-app@${distTag}`,
+        upgradeCommand: `npx ${npmPackage}@${channel.distTag}`,
       };
 
       if (config.isDevelopment || installKind === "source") {
@@ -187,7 +202,7 @@ export function createAppVersionService(
       const releaseResponse: SystemVersionResponse = {
         ...baseResponse,
         latestVersion,
-        upgradeCommand: `npx bb-app@${release.distTag}`,
+        upgradeCommand: `npx ${npmPackage}@${release.distTag}`,
       };
 
       const parsedCurrent = semver.parse(config.appVersion);
