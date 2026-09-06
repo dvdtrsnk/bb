@@ -10,22 +10,13 @@ on:
       - "fork-v*"
   workflow_dispatch:
     inputs:
-      version_bump:
-        description: Version bump to apply before tagging and publishing.
-        required: true
-        type: choice
-        default: patch
-        options:
-          - patch
-          - minor
-          - major
       dry_run:
-        description: Run validation and npm publish --dry-run only (still bumps, commits, and tags).
+        description: Run validation and npm publish --dry-run only (still tags and pushes the tag).
         required: true
         type: boolean
         default: false
 
-run-name: ${{ github.event_name == 'workflow_dispatch' && format('Publish fork build ({0} bump{1})', inputs.version_bump, inputs.dry_run && ', dry run' || '') || format('Publish fork build ({0})', github.ref_name) }}
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Publish fork build (dispatch{0})', inputs.dry_run && ', dry run' || '') || format('Publish fork build ({0})', github.ref_name) }}
 
 permissions:
   contents: read
@@ -67,34 +58,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Bump, commit, and tag a fork release
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        env:
-          VERSION_BUMP: ${{ inputs.version_bump }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          node scripts/bump-version.mjs "--$VERSION_BUMP"
-          node scripts/tag-fork-release.mjs
-          version="$(node -p "require('./packages/bb-app/package.json').version")"
-          git push origin "HEAD:${GITHUB_REF_NAME}" "fork-v$version"
-
       - name: Determine release version
         id: version
         run: |
-          version="$(node -p "require('./packages/bb-app/package.json').version")"
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            expected_tag="fork-v$version"
-            if [ "${GITHUB_REF_NAME}" != "$expected_tag" ]; then
-              echo "::error::Tag ${GITHUB_REF_NAME} does not match packages/bb-app/package.json version $version (expected $expected_tag)."
-              exit 1
-            fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            node scripts/tag-fork-release.mjs
+            tag="$(git describe --tags --exact-match HEAD)"
+            git push origin "$tag"
+          else
+            node scripts/tag-fork-release.mjs --verify "${GITHUB_REF_NAME}"
           fi
-          if printf '%s' "$version" | grep -q -- '-'; then
-            echo "::error::Refusing to publish prerelease version $version; fork releases must use plain semver."
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build, typecheck, and test focused packages
         run: pnpm exec turbo run typecheck test --filter=@bb/config --filter=@bb/server --filter=bb-app --output-logs=new-only
