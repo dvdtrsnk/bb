@@ -24,7 +24,7 @@ branch (force-with-lease, since the branch history changed):
 git push --force-with-lease origin <your-fork-branch>
 ```
 
-## 2. Bump the version and tag a release
+## 2. Release a new fork build
 
 Fork releases use plain semver bumps (`1.2.3`, `1.2.4`, `1.3.0`, ...), never a
 prerelease suffix like `-alpha.1`. The server's update check compares versions
@@ -32,21 +32,41 @@ with `semver.gt`, and a prerelease version is always considered *older* than
 its own stable version, so a prerelease tag would never show up as an
 available update.
 
+There are two ways to trigger a release; both end up running the same
+`.github/workflows/publish-fork.yml` build-test-publish steps.
+
+### Option A: one command, from GitHub Actions
+
+Go to the repo's Actions tab → "Publish fork build" → "Run workflow", pick
+the branch, a version bump (`patch`/`minor`/`major`), and whether to dry-run.
+The workflow itself bumps `packages/bb-app/package.json` (and
+`apps/desktop/package.json`), commits the bump, tags it `fork-v<version>`,
+pushes both back to the branch, then builds and publishes.
+
+The same thing from the CLI (or ask the agent to run it):
+
+```sh
+gh workflow run publish-fork.yml --ref <your-fork-branch> -f version_bump=patch -f dry_run=false
+```
+
+### Option B: bump and tag locally, then push
+
 ```sh
 node scripts/bump-version.mjs --patch   # or --minor / --major
 node scripts/tag-fork-release.mjs
-git push origin fork-v<version>
+git push origin HEAD fork-v<version>
 ```
 
-`tag-fork-release.mjs` reads the version from
-`packages/bb-app/package.json` and creates a `fork-v<version>` tag on the
-current commit; it refuses to tag a prerelease version.
+`tag-fork-release.mjs` reads the version from `packages/bb-app/package.json`,
+commits the pending version bump if there is one, and creates a
+`fork-v<version>` tag on that commit; it refuses to tag a prerelease version.
+Pushing the resulting tag triggers the publish workflow.
 
 ## 3. Automated build and publish
 
-Pushing a `fork-v*` tag runs `.github/workflows/publish-fork.yml`, which
-builds and tests `bb-app`, then publishes it under a different package name
-and dist-tag so it never collides with the official release:
+Both options above run `.github/workflows/publish-fork.yml`, which builds and
+tests `bb-app`, then publishes it under a different package name and dist-tag
+so it never collides with the official release:
 
 - npm package: `@dvdtrsnk/bb-app` (set via the workflow's `FORK_NPM_PACKAGE` env)
 - npm dist-tag: `fork` (set via the workflow's `FORK_NPM_DIST_TAG` env)
