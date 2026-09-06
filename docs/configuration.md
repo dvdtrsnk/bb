@@ -102,6 +102,7 @@ set of startup-only server or launcher env entries is:
   `BB_MARKETPLACE_URL`, `BB_POSTHOG_API_KEY`, and `BB_TELEMETRY`
 - `BB_SERVER_BIND_HOST`, `BB_SERVER_PORT`, `BB_TRANSCRIPTION`, and all
   `BB_FF_*` feature flags
+- `BB_UPDATE_NPM_PACKAGE` and `BB_UPDATE_NPM_DIST_TAG`
 
 Setting or unsetting one still runs the reload for any other pending changes,
 but the running processes keep their current values. Apply it with a full
@@ -147,6 +148,8 @@ signal it, so a stale file left by a crash cannot stop an unrelated process.
 | `BB_HOST_DAEMON_PORT`   | `bb-app env`, environment, or `--host-daemon-port` | Startup-only            | Local host-daemon API port. Defaults to `38887`. A full launcher or desktop app restart is required after a persistent set or unset.                                                                                                                                                                                                                                                                           |
 | `BB_LOG_LEVEL`          | `bb-app config`                                    | Startup-only debugging  | Log level: `trace`, `debug`, `info`, `warn`, `error`, or `fatal`. A full launcher or desktop app restart is required.                                                                                                                                                                                                                                                                                          |
 | `OPENAI_API_KEY`        | `bb-app env`                                       | OpenAI opt-in routes    | Required only when selecting explicit OpenAI provider routes such as `openai/gpt-4o-mini` or `openai/gpt-transcribe`.                                                                                                                                                                                                                                                                                          |
+| `BB_UPDATE_NPM_PACKAGE` | `bb-app env`, or environment                       | Startup-only, advanced  | npm package name the server checks for update availability, and that the reported `upgradeCommand` tells the user to install. Defaults to `bb-app`. See [fork-release-process.md](fork-release-process.md) for pointing this at a fork's own published package.                                                                                                                                              |
+| `BB_UPDATE_NPM_DIST_TAG`| `bb-app env`, or environment                       | Startup-only, advanced  | npm dist-tag the server treats as the latest version when checking for updates. Defaults to `latest`. Set together with `BB_UPDATE_NPM_PACKAGE`.                                                                                                                                                                                                                                                              |
 
 By default, helper inference and voice transcription use Codex credentials from
 the host daemon. Run `codex login` on the host for the default path. Set

@@ -206,6 +206,8 @@ export async function createTestAppHarness(
     serverPort: 3334,
     sharedSkillRoots: { user: [], project: [] },
     transcriptionModel: "test/mock-transcription",
+    updateNpmPackage: "bb-app",
+    updateNpmDistTag: "latest",
     appUrl: "https://bb.example.test",
     ...configOverrides,
   };

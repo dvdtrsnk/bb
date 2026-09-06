@@ -46,7 +46,7 @@ describe("createAppVersionService", () => {
   it("skips the npm lookup in development mode", async () => {
     const calls: FetchCall[] = [];
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: true },
+      config: { appVersion: "0.0.5", isDevelopment: true, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], calls),
       logger: testLogger,
     });
@@ -65,7 +65,7 @@ describe("createAppVersionService", () => {
   it("reports updateAvailable=true when npm latest is greater", async () => {
     const calls: FetchCall[] = [];
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], calls),
       logger: testLogger,
     });
@@ -78,7 +78,7 @@ describe("createAppVersionService", () => {
 
   it("reports updateAvailable=false when versions are equal", async () => {
     const service = createAppVersionService({
-      config: { appVersion: "0.0.6", isDevelopment: false },
+      config: { appVersion: "0.0.6", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], []),
       logger: testLogger,
     });
@@ -89,7 +89,7 @@ describe("createAppVersionService", () => {
 
   it("reports updateAvailable=false when local is ahead of npm latest", async () => {
     const service = createAppVersionService({
-      config: { appVersion: "9.9.9", isDevelopment: false },
+      config: { appVersion: "9.9.9", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], []),
       logger: testLogger,
     });
@@ -101,7 +101,7 @@ describe("createAppVersionService", () => {
   it("returns latestVersion=null when npm fails and there is no cache", async () => {
     const warn = vi.fn();
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch(
         [{ throwError: new Error("network down") }],
         [],
@@ -122,7 +122,7 @@ describe("createAppVersionService", () => {
 
   it("returns latestVersion=null when npm returns a non-200 status", async () => {
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ ok: false, status: 429, body: {} }], []),
       logger: testLogger,
     });
@@ -133,7 +133,7 @@ describe("createAppVersionService", () => {
 
   it("returns latestVersion=null when npm returns an unexpected payload", async () => {
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ body: { unexpected: true } }], []),
       logger: testLogger,
     });
@@ -143,7 +143,7 @@ describe("createAppVersionService", () => {
 
   it("returns latestVersion but updateAvailable=false when current version is not semver", async () => {
     const service = createAppVersionService({
-      config: { appVersion: "totally-not-semver", isDevelopment: false },
+      config: { appVersion: "totally-not-semver", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], []),
       logger: testLogger,
     });
@@ -155,7 +155,7 @@ describe("createAppVersionService", () => {
   it("caches the npm result and avoids repeat fetches inside the TTL", async () => {
     const calls: FetchCall[] = [];
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch(
         [{ body: { version: "0.0.6" } }, { body: { version: "0.0.7" } }],
         calls,
@@ -172,7 +172,7 @@ describe("createAppVersionService", () => {
   it("bypasses the npm cache for a forced check", async () => {
     const calls: FetchCall[] = [];
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch(
         [{ body: { version: "0.0.6" } }, { body: { version: "0.0.7" } }],
         calls,
@@ -191,7 +191,7 @@ describe("createAppVersionService", () => {
     let currentTime = 1_000;
     const service = createAppVersionService({
       cacheTtlMs: 100,
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch(
         [{ body: { version: "0.0.6" } }, { body: { version: "0.0.7" } }],
         calls,
@@ -210,7 +210,7 @@ describe("createAppVersionService", () => {
   it("dedupes concurrent inflight requests", async () => {
     const calls: FetchCall[] = [];
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], calls),
       logger: testLogger,
     });
@@ -228,7 +228,7 @@ describe("createAppVersionService", () => {
     let currentTime = 1_000;
     const service = createAppVersionService({
       cacheTtlMs: 100,
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch(
         [
           { body: { version: "0.0.6" } },
@@ -250,7 +250,7 @@ describe("createAppVersionService", () => {
 
   it("treats a published prerelease latest as an update when local is the stable predecessor", async () => {
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6-alpha.1" } }], []),
       logger: testLogger,
     });
@@ -261,7 +261,7 @@ describe("createAppVersionService", () => {
 
   it("does not flag updateAvailable when local is the stable that follows a published prerelease", async () => {
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ body: { version: "0.0.5-alpha.1" } }], []),
       logger: testLogger,
     });
@@ -270,9 +270,29 @@ describe("createAppVersionService", () => {
     expect(response.updateAvailable).toBe(false);
   });
 
+  it("checks a configured npm package and dist-tag instead of the default", async () => {
+    const calls: FetchCall[] = [];
+    const service = createAppVersionService({
+      config: {
+        appVersion: "0.0.5",
+        isDevelopment: false,
+        updateNpmPackage: "@bb-fork/bb-app",
+        updateNpmDistTag: "fork",
+      },
+      fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], calls),
+      logger: testLogger,
+    });
+    const response = await service.getSystemVersion();
+    expect(calls[0]?.url).toBe(
+      "https://registry.npmjs.org/@bb-fork/bb-app/fork",
+    );
+    expect(response.upgradeCommand).toBe("npx @bb-fork/bb-app@fork");
+    expect(response.updateAvailable).toBe(true);
+  });
+
   it("ignores semver build metadata when comparing equal versions", async () => {
     const service = createAppVersionService({
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, updateNpmPackage: "bb-app", updateNpmDistTag: "latest" },
       fetchImpl: createStubFetch([{ body: { version: "0.0.5+build.1" } }], []),
       logger: testLogger,
     });

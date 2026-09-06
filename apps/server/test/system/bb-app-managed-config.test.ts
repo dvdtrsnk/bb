@@ -77,6 +77,8 @@ function createRuntimeConfig(): ServerRuntimeConfig {
     serverPort: 38886,
     sharedSkillRoots: { user: [], project: [] },
     transcriptionModel: "openai/gpt-4o-transcribe",
+    updateNpmPackage: "bb-app",
+    updateNpmDistTag: "latest",
   };
 }
 

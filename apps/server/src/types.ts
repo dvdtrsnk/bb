@@ -38,6 +38,8 @@ export interface ServerRuntimeConfig {
   serverPort: number;
   sharedSkillRoots: ProviderNativeSkillRoots;
   transcriptionModel: string;
+  updateNpmPackage: string;
+  updateNpmDistTag: string;
   appUrl?: string;
   devAppPort?: number;
   launchId?: string;

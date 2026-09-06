@@ -229,6 +229,8 @@ async function startIntegrationServer(
     serverPort: 0,
     sharedSkillRoots: { user: [], project: [] },
     transcriptionModel: "test/mock-transcription",
+    updateNpmPackage: "bb-app",
+    updateNpmDistTag: "latest",
     isDevelopment: false,
     managedEnvironmentRetireGraceMs: 0,
   };

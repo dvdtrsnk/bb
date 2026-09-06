@@ -1,0 +1,105 @@
+# Publishes this personal fork branch as its own npm package, separate from
+# the official bb-app release in publish-bb-app.yml. See
+# docs/fork-release-process.md for the end-to-end rebase/tag/publish/install
+# workflow this feeds.
+name: Publish fork build
+
+on:
+  push:
+    tags:
+      - "fork-v*"
+
+run-name: Publish fork build (${{ github.ref_name }})
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-fork-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  FORK_NPM_PACKAGE: "@dvdtrsnk/bb-app"
+  FORK_NPM_DIST_TAG: "fork"
+
+jobs:
+  publish-fork:
+    name: Publish fork build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: fork-npm-release
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#fork-v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag $tag must look like fork-vX.Y.Z (plain semver, no prerelease suffix), got version '$version'."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build, typecheck, and test focused packages
+        run: pnpm exec turbo run typecheck test --filter=@bb/config --filter=@bb/server --filter=bb-app --output-logs=new-only
+
+      - name: Smoke bb-app tarball
+        run: pnpm exec turbo run smoke:tarball --filter=bb-app --force --output-logs=new-only
+
+      - name: Set fork package name and version
+        working-directory: packages/bb-app
+        env:
+          FORK_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          npm pkg set name="$FORK_NPM_PACKAGE"
+          npm pkg set version="$FORK_VERSION"
+          npm pkg set publishConfig.access=public
+
+      - name: Preview npm package
+        working-directory: packages/bb-app
+        run: npm pack --dry-run
+
+      - name: Publish fork build to npm
+        working-directory: packages/bb-app
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.FORK_NPM_TOKEN }}
+        run: npm publish --tag "$FORK_NPM_DIST_TAG"
+
+      - name: Summarize release
+        env:
+          FORK_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          {
+            echo "## Fork build published"
+            echo
+            echo "- package: \`$FORK_NPM_PACKAGE\`"
+            echo "- version: \`$FORK_VERSION\`"
+            echo "- npm tag: \`$FORK_NPM_DIST_TAG\`"
+            echo "- commit: \`${GITHUB_SHA}\`"
+            echo
+            echo "Point a server at this channel with:"
+            echo '```'
+            echo "BB_UPDATE_NPM_PACKAGE=$FORK_NPM_PACKAGE"
+            echo "BB_UPDATE_NPM_DIST_TAG=$FORK_NPM_DIST_TAG"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
