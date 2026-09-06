@@ -24,6 +24,8 @@ import {
   BB_EXTERNAL_URL_ENV,
   BB_INHERITED_SKILLS_ROOTS_ENV,
   BB_MARKETPLACE_URL_ENV,
+  BB_UPDATE_NPM_DIST_TAG_ENV,
+  BB_UPDATE_NPM_PACKAGE_ENV,
   BB_POSTHOG_API_KEY_ENV,
   BB_SERVER_BIND_HOST_ENV,
   BB_SERVER_LAUNCH_ID_ENV,
@@ -35,6 +37,7 @@ import {
   DEFAULT_BB_APP_VERSION,
   DEFAULT_BB_EXTERNAL_URL,
   DEFAULT_BB_MARKETPLACE_URL,
+  DEFAULT_BB_UPDATE_NPM_PACKAGE,
   DEFAULT_BB_POSTHOG_API_KEY,
   DEFAULT_BB_SERVER_BIND_HOST,
   DEFAULT_BB_TELEMETRY,
@@ -60,6 +63,8 @@ export interface ServerConfig
   BB_INHERITED_SKILLS_ROOTS: string[];
   BB_POSTHOG_API_KEY: string;
   BB_MARKETPLACE_URL: string;
+  BB_UPDATE_NPM_PACKAGE: string;
+  BB_UPDATE_NPM_DIST_TAG?: string;
   BB_SERVER_BIND_HOST: ServerBindHost;
   BB_SERVER_LAUNCH_ID?: string;
   BB_APP_UPDATE_MODE?: AppUpdateMode;
@@ -147,6 +152,12 @@ export function loadServerConfig(
       definition: BB_MARKETPLACE_URL_ENV,
       env: loader.env,
     }),
+    BB_UPDATE_NPM_PACKAGE: readEnvVarWithDefault({
+      context: loader.context,
+      defaultValue: DEFAULT_BB_UPDATE_NPM_PACKAGE,
+      definition: BB_UPDATE_NPM_PACKAGE_ENV,
+      env: loader.env,
+    }),
     BB_POSTHOG_API_KEY: readEnvVarWithDefault({
       context: loader.context,
       defaultValue: DEFAULT_BB_POSTHOG_API_KEY,
@@ -182,6 +193,15 @@ export function loadServerConfig(
     key: "BB_DEV_APP_PORT",
     target: config,
     value: devAppConfig.BB_DEV_APP_PORT,
+  });
+  assignIfDefined({
+    key: "BB_UPDATE_NPM_DIST_TAG",
+    target: config,
+    value: readOptionalEnvVar({
+      context: loader.context,
+      definition: BB_UPDATE_NPM_DIST_TAG_ENV,
+      env: loader.env,
+    }),
   });
   assignIfDefined({
     key: "BB_APP_UPDATE_MODE",

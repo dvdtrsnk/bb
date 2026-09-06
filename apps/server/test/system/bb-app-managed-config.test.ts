@@ -70,6 +70,8 @@ function createRuntimeConfig(): ServerRuntimeConfig {
     performanceDiagnosticsAvailable: false,
     serverPort: 38886,
     sharedSkillRoots: { user: [], project: [] },
+    updateNpmPackage: "bb-app",
+    updateNpmDistTag: null,
   };
 }
 

@@ -196,6 +196,8 @@ async function startIntegrationServer(
     appUrl: "https://bb.example.test",
     serverPort: 0,
     sharedSkillRoots: { user: [], project: [] },
+    updateNpmPackage: "bb-app",
+    updateNpmDistTag: null,
     isDevelopment: false,
     performanceDiagnosticsAvailable: false,
   };

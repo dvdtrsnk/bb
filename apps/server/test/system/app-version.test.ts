@@ -42,6 +42,11 @@ function createStubFetch(
   }) as unknown as typeof fetch;
 }
 
+const upstreamChannel = {
+  updateNpmPackage: "bb-app",
+  updateNpmDistTag: null,
+};
+
 describe("createAppVersionService", () => {
   it.each(["source", "desktop", "npm", null] as const)(
     "reports install kind %s independently of npm lookup failure",
@@ -49,7 +54,7 @@ describe("createAppVersionService", () => {
       const service = createAppVersionService({
         sourceCommit: null,
         installKind,
-        config: { appVersion: "0.0.5", isDevelopment: false },
+        config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
         fetchImpl: createStubFetch([{ throwError: new Error("offline") }], []),
         logger: testLogger,
       });
@@ -62,7 +67,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: "a".repeat(40),
       installKind: "source",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { version: "9.9.9" } }], calls),
       logger: testLogger,
     });
@@ -78,7 +83,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: true },
+      config: { appVersion: "0.0.5", isDevelopment: true, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], calls),
       logger: testLogger,
     });
@@ -101,7 +106,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], calls),
       logger: testLogger,
     });
@@ -117,7 +122,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.43.5-nightly.100.1", isDevelopment: false },
+      config: { appVersion: "0.43.5-nightly.100.1", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch(
         [{ body: { version: "0.43.5-nightly.101.1" } }],
         calls,
@@ -146,7 +151,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.43.5-nightly.100.1", isDevelopment: false },
+      config: { appVersion: "0.43.5-nightly.100.1", isDevelopment: false, ...upstreamChannel },
       fetchImpl,
       logger: testLogger,
     });
@@ -161,11 +166,36 @@ describe("createAppVersionService", () => {
     expect(response.upgradeCommand).toBe("npx bb-app@latest");
   });
 
+  it("checks only a configured npm package and dist-tag, even for a nightly build", async () => {
+    const calls: FetchCall[] = [];
+    const service = createAppVersionService({
+      sourceCommit: null,
+      installKind: "npm",
+      config: {
+        appVersion: "0.43.5-nightly.100.1",
+        isDevelopment: false,
+        updateNpmPackage: "@bb-fork/bb-app",
+        updateNpmDistTag: "fork",
+      },
+      fetchImpl: createStubFetch(
+        [{ body: { version: "0.43.5-nightly.101.1" } }],
+        calls,
+      ),
+      logger: testLogger,
+    });
+    const response = await service.getSystemVersion();
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://registry.npmjs.org/@bb-fork/bb-app/fork",
+    ]);
+    expect(response.upgradeCommand).toBe("npx @bb-fork/bb-app@fork");
+    expect(response.updateAvailable).toBe(true);
+  });
+
   it("reports updateAvailable=false when versions are equal", async () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.6", isDevelopment: false },
+      config: { appVersion: "0.0.6", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], []),
       logger: testLogger,
     });
@@ -178,7 +208,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "9.9.9", isDevelopment: false },
+      config: { appVersion: "9.9.9", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], []),
       logger: testLogger,
     });
@@ -192,7 +222,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch(
         [{ throwError: new Error("network down") }],
         [],
@@ -217,7 +247,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ ok: false, status: 429, body: {} }], []),
       logger: testLogger,
     });
@@ -230,7 +260,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { unexpected: true } }], []),
       logger: testLogger,
     });
@@ -242,7 +272,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "totally-not-semver", isDevelopment: false },
+      config: { appVersion: "totally-not-semver", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], []),
       logger: testLogger,
     });
@@ -256,7 +286,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch(
         [{ body: { version: "0.0.6" } }, { body: { version: "0.0.7" } }],
         calls,
@@ -275,7 +305,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch(
         [{ body: { version: "0.0.6" } }, { body: { version: "0.0.7" } }],
         calls,
@@ -294,7 +324,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6" } }], calls),
       logger: testLogger,
     });
@@ -314,7 +344,7 @@ describe("createAppVersionService", () => {
       sourceCommit: null,
       installKind: "npm",
       cacheTtlMs: 100,
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch(
         [
           { body: { version: "0.0.6" } },
@@ -338,7 +368,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { version: "0.0.6-alpha.1" } }], []),
       logger: testLogger,
     });
@@ -351,7 +381,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { version: "0.0.5-alpha.1" } }], []),
       logger: testLogger,
     });
@@ -364,7 +394,7 @@ describe("createAppVersionService", () => {
     const service = createAppVersionService({
       sourceCommit: null,
       installKind: "npm",
-      config: { appVersion: "0.0.5", isDevelopment: false },
+      config: { appVersion: "0.0.5", isDevelopment: false, ...upstreamChannel },
       fetchImpl: createStubFetch([{ body: { version: "0.0.5+build.1" } }], []),
       logger: testLogger,
     });
