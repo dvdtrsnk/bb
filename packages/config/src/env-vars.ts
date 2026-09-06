@@ -225,6 +225,20 @@ export const BB_MARKETPLACE_URL_ENV = defineEnvVar<string>({
   parse: parseOptionalUrlEnvValue,
 });
 
+export const BB_UPDATE_NPM_PACKAGE_ENV = defineEnvVar<string>({
+  description:
+    "npm package name the server checks for update availability, and that upgradeCommand tells the user to install. Defaults to bb-app; point it at a fork's own published package to surface that fork's releases instead.",
+  name: "BB_UPDATE_NPM_PACKAGE",
+  parse: parseNonEmptyStringEnvValue,
+});
+
+export const BB_UPDATE_NPM_DIST_TAG_ENV = defineEnvVar<string>({
+  description:
+    "npm dist-tag the server treats as the latest version when checking for updates. Defaults to latest; set to a fork's own dist-tag (e.g. fork) together with BB_UPDATE_NPM_PACKAGE to track that fork's release channel.",
+  name: "BB_UPDATE_NPM_DIST_TAG",
+  parse: parseNonEmptyStringEnvValue,
+});
+
 export const BB_INFERENCE_ENV = defineEnvVar<string>({
   description: "Inference model used for server-side completions",
   name: "BB_INFERENCE",
@@ -374,6 +388,8 @@ export const DEFAULT_BB_TELEMETRY = true;
 export const DEFAULT_BB_DEV_APP_HOST = "";
 export const DEFAULT_BB_MARKETPLACE_URL =
   "https://getbb.app/marketplace/v2/marketplace.json";
+export const DEFAULT_BB_UPDATE_NPM_PACKAGE = "bb-app";
+export const DEFAULT_BB_UPDATE_NPM_DIST_TAG = "latest";
 export const DEFAULT_BB_INFERENCE = DEFAULTS.inferenceModel;
 export const DEFAULT_BB_INFERENCE_FALLBACK = DEFAULTS.inferenceFallbackModel;
 export const DEFAULT_BB_TRANSCRIPTION = DEFAULTS.transcriptionModel;

@@ -84,6 +84,8 @@ export async function runServer(serverConfig: ServerConfig): Promise<void> {
     serverPort: serverConfig.BB_SERVER_PORT,
     sharedSkillRoots: { user: [], project: [] },
     transcriptionModel: serverConfig.BB_TRANSCRIPTION,
+    updateNpmPackage: serverConfig.BB_UPDATE_NPM_PACKAGE,
+    updateNpmDistTag: serverConfig.BB_UPDATE_NPM_DIST_TAG,
   };
 
   const providerRegistry = createProviderRegistryService({

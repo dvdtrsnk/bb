@@ -3,10 +3,9 @@ import { z } from "zod";
 import type { SystemVersionResponse } from "@bb/server-contract";
 import type { ServerLogger, ServerRuntimeConfig } from "../../types.js";
 
-const NPM_LATEST_URL = "https://registry.npmjs.org/bb-app/latest";
+const NPM_REGISTRY_BASE_URL = "https://registry.npmjs.org";
 const NPM_LATEST_TIMEOUT_MS = 5_000;
 const NPM_LATEST_CACHE_TTL_MS = 60 * 60 * 1000;
-const UPGRADE_COMMAND = "npx bb-app@latest";
 
 const npmLatestResponseSchema = z
   .object({
@@ -25,7 +24,10 @@ interface AppVersionGetSystemVersionArgs {
 }
 
 interface CreateAppVersionServiceArgs {
-  config: Pick<ServerRuntimeConfig, "appVersion" | "isDevelopment">;
+  config: Pick<
+    ServerRuntimeConfig,
+    "appVersion" | "isDevelopment" | "updateNpmPackage" | "updateNpmDistTag"
+  >;
   fetchImpl?: typeof fetch;
   logger: ServerLogger;
   cacheTtlMs?: number;
@@ -45,6 +47,8 @@ export function createAppVersionService(
   const now = args.now ?? (() => Date.now());
   const logger = args.logger;
   const config = args.config;
+  const npmLatestUrl = `${NPM_REGISTRY_BASE_URL}/${config.updateNpmPackage}/${config.updateNpmDistTag}`;
+  const upgradeCommand = `npx ${config.updateNpmPackage}@${config.updateNpmDistTag}`;
 
   let cache: NpmLatestCacheEntry | null = null;
   let inflight: Promise<string | null> | null = null;
@@ -56,13 +60,13 @@ export function createAppVersionService(
       NPM_LATEST_TIMEOUT_MS,
     );
     try {
-      const response = await fetchImpl(NPM_LATEST_URL, {
+      const response = await fetchImpl(npmLatestUrl, {
         headers: { accept: "application/json" },
         signal: controller.signal,
       });
       if (!response.ok) {
         logger.warn(
-          { status: response.status, url: NPM_LATEST_URL },
+          { status: response.status, url: npmLatestUrl },
           "Failed to fetch latest bb-app version from npm",
         );
         return null;
@@ -71,7 +75,7 @@ export function createAppVersionService(
       const parsed = npmLatestResponseSchema.safeParse(json);
       if (!parsed.success) {
         logger.warn(
-          { url: NPM_LATEST_URL, issue: parsed.error.message },
+          { url: npmLatestUrl, issue: parsed.error.message },
           "npm latest response did not match expected shape",
         );
         return null;
@@ -80,7 +84,7 @@ export function createAppVersionService(
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.warn(
-        { url: NPM_LATEST_URL, error: message },
+        { url: npmLatestUrl, error: message },
         "npm latest lookup failed",
       );
       return null;
@@ -130,7 +134,7 @@ export function createAppVersionService(
         source: "npm",
         updateAvailable: false,
         isDevelopment: config.isDevelopment,
-        upgradeCommand: UPGRADE_COMMAND,
+        upgradeCommand,
       };
 
       if (config.isDevelopment) {

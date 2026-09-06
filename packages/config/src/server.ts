@@ -26,6 +26,8 @@ import {
   BB_SERVER_LAUNCH_ID_ENV,
   BB_TELEMETRY_ENV,
   BB_TRANSCRIPTION_ENV,
+  BB_UPDATE_NPM_DIST_TAG_ENV,
+  BB_UPDATE_NPM_PACKAGE_ENV,
   DEFAULT_BB_APP_URL,
   DEFAULT_BB_APP_SURFACE,
   DEFAULT_BB_APP_VERSION,
@@ -37,6 +39,8 @@ import {
   DEFAULT_BB_SERVER_BIND_HOST,
   DEFAULT_BB_TELEMETRY,
   DEFAULT_BB_TRANSCRIPTION,
+  DEFAULT_BB_UPDATE_NPM_DIST_TAG,
+  DEFAULT_BB_UPDATE_NPM_PACKAGE,
   DEFAULT_OPENAI_API_KEY,
   OPENAI_API_KEY_ENV,
   parseServerBindHost,
@@ -64,6 +68,8 @@ export interface ServerConfig
   BB_SERVER_LAUNCH_ID?: string;
   BB_TELEMETRY: boolean;
   BB_TRANSCRIPTION: string;
+  BB_UPDATE_NPM_PACKAGE: string;
+  BB_UPDATE_NPM_DIST_TAG: string;
   OPENAI_API_KEY: string;
   featureFlags: FeatureFlags;
 }
@@ -181,6 +187,18 @@ export function loadServerConfig(
       context: loader.context,
       defaultValue: DEFAULT_BB_TRANSCRIPTION,
       definition: BB_TRANSCRIPTION_ENV,
+      env: loader.env,
+    }),
+    BB_UPDATE_NPM_PACKAGE: readEnvVarWithDefault({
+      context: loader.context,
+      defaultValue: DEFAULT_BB_UPDATE_NPM_PACKAGE,
+      definition: BB_UPDATE_NPM_PACKAGE_ENV,
+      env: loader.env,
+    }),
+    BB_UPDATE_NPM_DIST_TAG: readEnvVarWithDefault({
+      context: loader.context,
+      defaultValue: DEFAULT_BB_UPDATE_NPM_DIST_TAG,
+      definition: BB_UPDATE_NPM_DIST_TAG_ENV,
       env: loader.env,
     }),
     OPENAI_API_KEY: readEnvVarWithDefault({
