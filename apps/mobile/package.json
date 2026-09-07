@@ -15,7 +15,8 @@
     "test": "vitest run --config vitest.config.ts",
     "theme:generate": "node --conditions=source --import tsx scripts/generate-native-theme.ts",
     "e2e:ios": "JAVA_HOME=${JAVA_HOME:-/opt/homebrew/opt/openjdk@17} maestro test e2e/flows",
-    "e2e:android": "maestro test e2e/android/smoke.yaml"
+    "e2e:android": "maestro test e2e/android/smoke.yaml",
+    "ios:device": "./scripts/build-ios-device.sh"
   },
   "dependencies": {
     "@bb/client-core": "workspace:*",
