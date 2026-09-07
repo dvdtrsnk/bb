@@ -12,7 +12,8 @@
     "lint": "oxlint app src scripts metro.config.js",
     "test": "vitest run --config vitest.config.ts",
     "theme:generate": "node --conditions=source --import tsx scripts/generate-native-theme.ts",
-    "e2e:ios": "JAVA_HOME=${JAVA_HOME:-/opt/homebrew/opt/openjdk@17} maestro test e2e/flows"
+    "e2e:ios": "JAVA_HOME=${JAVA_HOME:-/opt/homebrew/opt/openjdk@17} maestro test e2e/flows",
+    "ios:device": "./scripts/build-ios-device.sh"
   },
   "dependencies": {
     "@bb/client-core": "workspace:*",
