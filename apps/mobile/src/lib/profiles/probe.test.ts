@@ -2,19 +2,41 @@ import { describe, expect, it } from "vitest";
 import { probeServer, type ProbeFetch } from "./probe";
 
 function fakeFetch(
-  routes: Record<string, { status?: number; body?: unknown; throws?: Error }>,
+  routes: Record<
+    string,
+    {
+      status?: number;
+      body?: unknown;
+      throws?: Error;
+      contentType?: string;
+    }
+  >,
 ): ProbeFetch & { calls: string[] } {
   const calls: string[] = [];
   const impl: ProbeFetch = async (url) => {
     calls.push(url);
     const path = new URL(url).pathname;
     const route = routes[path];
-    if (!route) return { ok: false, status: 404, json: async () => ({}) };
+    if (!route) {
+      return {
+        ok: false,
+        status: 404,
+        headers: { get: () => null },
+        json: async () => ({}),
+      };
+    }
     if (route.throws) throw route.throws;
     const status = route.status ?? 200;
+    const contentType =
+      route.contentType ??
+      (route.body === undefined ? "text/plain" : "application/json");
     return {
       ok: status >= 200 && status < 300,
       status,
+      headers: {
+        get: (name) =>
+          name.toLowerCase() === "content-type" ? contentType : null,
+      },
       json: async () => {
         if (route.body === undefined) throw new SyntaxError("not json");
         return route.body;
@@ -70,6 +92,7 @@ describe("probeServer", () => {
       serverUrl: "http://10.0.0.5:1",
       stage: "health",
       error: "Network request failed",
+      authWall: false,
     });
   });
 
@@ -92,6 +115,35 @@ describe("probeServer", () => {
       serverUrl: "https://me.getbb.app",
       stage: "config",
       error: "HTTP 401",
+      authWall: false,
+    });
+  });
+
+  it("flags a reverse-proxy login page as an auth wall instead of a broken server", async () => {
+    const fetchImpl = fakeFetch({
+      "/health": { contentType: "text/html; charset=utf-8" },
+    });
+    expect(await probeServer("https://bb-main.tresnak.cc", fetchImpl)).toEqual(
+      {
+        ok: false,
+        serverUrl: "https://bb-main.tresnak.cc",
+        stage: "health",
+        error: "Response was not JSON",
+        authWall: true,
+      },
+    );
+  });
+
+  it("does not flag an auth wall for a plain non-JSON glitch", async () => {
+    const fetchImpl = fakeFetch({
+      "/health": { contentType: "text/plain" },
+    });
+    expect(await probeServer("https://example.com", fetchImpl)).toEqual({
+      ok: false,
+      serverUrl: "https://example.com",
+      stage: "health",
+      error: "Response was not JSON",
+      authWall: false,
     });
   });
 });

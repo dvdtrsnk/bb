@@ -8,6 +8,7 @@ import {
   validateDirectServerUrl,
 } from "@/lib/profiles";
 import { describeError } from "@/lib/describe-error";
+import { AuthLoginModal } from "@/screens/webview";
 import { Button, GroupedRow, Input, Text, toast } from "@/ui";
 import { connectEnrollHref, rawPathHref } from "../shell/hrefs";
 import { GroupedScreen } from "./GroupedScreen";
@@ -18,6 +19,7 @@ type SubmitState =
   | { phase: "idle" }
   | { phase: "probing" }
   | { phase: "failed"; message: string }
+  | { phase: "login"; serverUrl: string }
   | { phase: "saving" };
 
 function defaultLabel(serverUrl: string): string {
@@ -45,19 +47,20 @@ export function AddServerScreen() {
   const validation = validateDirectServerUrl(url);
   const showUrlError = urlTouched && !validation.ok && url.trim().length > 0;
   const insecure = validation.ok && validation.warning === "insecure-http";
-  const busy = submit.phase === "probing" || submit.phase === "saving";
+  const busy =
+    submit.phase === "probing" ||
+    submit.phase === "saving" ||
+    submit.phase === "login";
   const firstRun = profiles.length === 0;
 
-  const onSubmit = async () => {
-    setUrlTouched(true);
-    if (!validation.ok) {
-      setSubmit({ phase: "failed", message: validation.message });
-      return;
-    }
-    const { serverUrl } = validation;
+  const runProbeAndSave = async (serverUrl: string) => {
     setSubmit({ phase: "probing" });
     const probe = await probeServer(serverUrl, fetch);
     if (!probe.ok) {
+      if (probe.authWall) {
+        setSubmit({ phase: "login", serverUrl });
+        return;
+      }
       const where =
         probe.stage === "health"
           ? "Could not reach the server"
@@ -87,6 +90,15 @@ export function AddServerScreen() {
     } catch (error) {
       setSubmit({ phase: "failed", message: describeError(error) });
     }
+  };
+
+  const onSubmit = async () => {
+    setUrlTouched(true);
+    if (!validation.ok) {
+      setSubmit({ phase: "failed", message: validation.message });
+      return;
+    }
+    await runProbeAndSave(validation.serverUrl);
   };
 
   return (
@@ -186,7 +198,7 @@ export function AddServerScreen() {
             iconPosition="right"
             testID="add-server-submit"
           >
-            {submit.phase === "probing"
+            {submit.phase === "probing" || submit.phase === "login"
               ? "Checking server…"
               : submit.phase === "saving"
                 ? "Saving…"
@@ -205,6 +217,14 @@ export function AddServerScreen() {
           ) : null}
         </View>
       </GroupedScreen>
+      <AuthLoginModal
+        visible={submit.phase === "login"}
+        serverUrl={submit.phase === "login" ? submit.serverUrl : ""}
+        onDismiss={() => setSubmit({ phase: "idle" })}
+        onAuthenticated={() => {
+          if (submit.phase === "login") void runProbeAndSave(submit.serverUrl);
+        }}
+      />
     </>
   );
 }

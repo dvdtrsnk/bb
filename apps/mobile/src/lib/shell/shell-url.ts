@@ -54,6 +54,27 @@ export function shellPathFromUrl(
   return `${pathname}${target.search}`;
 }
 
+function registrableDomain(hostname: string): string {
+  const labels = hostname.toLowerCase().split(".").filter(Boolean);
+  return labels.length <= 2 ? labels.join(".") : labels.slice(-2).join(".");
+}
+
+export function isSameSiteRedirect(url: string, serverUrl: string): boolean {
+  const server = parseServerUrl(serverUrl);
+  if (server === null) return false;
+  let target: URL;
+  let origin: URL;
+  try {
+    target = new URL(url);
+    origin = new URL(server.origin);
+  } catch {
+    return false;
+  }
+  if (target.protocol !== "https:") return false;
+  if (target.origin === origin.origin) return false;
+  return registrableDomain(target.hostname) === registrableDomain(origin.hostname);
+}
+
 export function isExternallyOpenable(url: string): boolean {
   try {
     const { protocol } = new URL(url);

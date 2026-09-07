@@ -1,6 +1,7 @@
 export {
   buildShellUrl,
   isExternallyOpenable,
+  isSameSiteRedirect,
   isShellNavigation,
   parseServerUrl,
   shellPathFromUrl,

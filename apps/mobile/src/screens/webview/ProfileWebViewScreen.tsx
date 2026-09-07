@@ -14,6 +14,7 @@ import { useProfiles } from "@/app-shell";
 import {
   buildShellUrl,
   isExternallyOpenable,
+  isSameSiteRedirect,
   isShellNavigation,
   resolveShellScreenState,
   shellPathFromUrl,
@@ -26,6 +27,7 @@ import { settingsSectionHref } from "@/screens/shell/hrefs";
 import { useTheme } from "@/theme";
 import { Button, EmptyStatePanel, Spinner, Text } from "@/ui";
 import { Linking } from "react-native";
+import { AuthLoginModal } from "./AuthLoginModal";
 import { useShellBridge } from "./useShellBridge";
 
 const APP_VERSION = String(Constants.expoConfig?.version ?? "0.0.0");
@@ -60,6 +62,9 @@ export function ProfileWebViewScreen() {
   const webViewRef = useRef<WebView>(null);
   const [load, setLoad] = useState<ShellLoadPhase>({ kind: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
+  const [authChallengeUrl, setAuthChallengeUrl] = useState<string | null>(
+    null,
+  );
   const currentPathRef = useRef<string>("/");
 
   const initialPath = useMemo(() => {
@@ -268,6 +273,14 @@ export function ProfileWebViewScreen() {
         onMessage={bridge.onMessage}
         onShouldStartLoadWithRequest={(request) => {
           if (isShellNavigation(request.url, profile.serverUrl)) return true;
+          if (
+            request.isTopFrame &&
+            request.navigationType !== "click" &&
+            isSameSiteRedirect(request.url, profile.serverUrl)
+          ) {
+            setAuthChallengeUrl(request.url);
+            return false;
+          }
           if (isExternallyOpenable(request.url)) {
             void Linking.openURL(request.url).catch(() => undefined);
           }
@@ -294,6 +307,16 @@ export function ProfileWebViewScreen() {
             setLoad({ kind: "http-error", status: statusCode });
         }}
         onContentProcessDidTerminate={retry}
+      />
+      <AuthLoginModal
+        visible={authChallengeUrl !== null}
+        serverUrl={profile.serverUrl}
+        initialUrl={authChallengeUrl ?? undefined}
+        onDismiss={() => setAuthChallengeUrl(null)}
+        onAuthenticated={() => {
+          setAuthChallengeUrl(null);
+          retry();
+        }}
       />
     </View>
   );
