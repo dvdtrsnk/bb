@@ -1,3 +1,4 @@
+const { execFileSync } = require("node:child_process");
 const { existsSync } = require("node:fs");
 const { resolve } = require("node:path");
 
@@ -22,6 +23,24 @@ function appVersion(fallback) {
   }
 }
 
+function git(args, fallback) {
+  try {
+    return execFileSync("git", args, {
+      cwd: __dirname,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return fallback;
+  }
+}
+
+function buildNumber() {
+  return (
+    process.env.BB_IOS_BUILD_NUMBER ?? git(["rev-list", "--count", "HEAD"], "1")
+  );
+}
+
 function withSelfHostedIdentity(config, isDev) {
   const bundleId = isDev
     ? `${SELF_HOSTED_BUNDLE_ID}.dev`
@@ -32,9 +51,14 @@ function withSelfHostedIdentity(config, isDev) {
     ios: {
       ...config.ios,
       bundleIdentifier: bundleId,
+      buildNumber: buildNumber(),
       associatedDomains: WEBCREDENTIAL_DOMAINS.map(
         (domain) => `webcredentials:${domain}`,
       ),
+      infoPlist: {
+        ...config.ios.infoPlist,
+        BBSourceCommit: git(["rev-parse", "--short", "HEAD"], "unknown"),
+      },
     },
     android: { ...config.android, package: bundleId },
     plugins: [...config.plugins, "./plugins/with-ios-scene-lifecycle"],
