@@ -10,7 +10,13 @@ export type ProbeServerResult =
       serverUrl: string;
       advertisedServerUrl: string | null;
     }
-  | { ok: false; serverUrl: string; stage: ProbeStage; error: string };
+  | {
+      ok: false;
+      serverUrl: string;
+      stage: ProbeStage;
+      error: string;
+      authWall: boolean;
+    };
 
 const probeConfigSchema = z.object({
   serverUrl: z.string(),
@@ -25,6 +31,7 @@ export type ProbeFetch = (
 ) => Promise<{
   ok: boolean;
   status: number;
+  headers: { get(name: string): string | null };
   json(): Promise<unknown>;
 }>;
 
@@ -44,7 +51,9 @@ async function getJson(
   fetchImpl: ProbeFetch,
   url: string,
   timeoutMs: number,
-): Promise<{ ok: true; body: unknown } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; body: unknown } | { ok: false; error: string; authWall: boolean }
+> {
   try {
     const response = await fetchImpl(url, {
       headers: {
@@ -53,15 +62,20 @@ async function getJson(
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
-      return { ok: false, error: `HTTP ${response.status}` };
+      return { ok: false, error: `HTTP ${response.status}`, authWall: false };
     }
     try {
       return { ok: true, body: await response.json() };
     } catch {
-      return { ok: false, error: "Response was not JSON" };
+      const contentType = response.headers.get("content-type") ?? "";
+      return {
+        ok: false,
+        error: "Response was not JSON",
+        authWall: contentType.toLowerCase().includes("text/html"),
+      };
     }
   } catch (error) {
-    return { ok: false, error: describeError(error) };
+    return { ok: false, error: describeError(error), authWall: false };
   }
 }
 
@@ -77,7 +91,13 @@ export async function probeServer(
     DEFAULT_PROBE_TIMEOUT_MS,
   );
   if (!health.ok) {
-    return { ok: false, serverUrl: base, stage: "health", error: health.error };
+    return {
+      ok: false,
+      serverUrl: base,
+      stage: "health",
+      error: health.error,
+      authWall: health.authWall,
+    };
   }
   if (!healthSchema.safeParse(health.body).success) {
     return {
@@ -85,6 +105,7 @@ export async function probeServer(
       serverUrl: base,
       stage: "health",
       error: "Not a bb server (unexpected /health response)",
+      authWall: false,
     };
   }
 
@@ -94,7 +115,13 @@ export async function probeServer(
     DEFAULT_PROBE_TIMEOUT_MS,
   );
   if (!config.ok) {
-    return { ok: false, serverUrl: base, stage: "config", error: config.error };
+    return {
+      ok: false,
+      serverUrl: base,
+      stage: "config",
+      error: config.error,
+      authWall: config.authWall,
+    };
   }
   const parsed = probeConfigSchema.safeParse(config.body);
   if (!parsed.success) {
@@ -102,6 +129,7 @@ export async function probeServer(
       ok: false,
       serverUrl: base,
       stage: "config",
+      authWall: false,
       error: "Not a bb server (unexpected /system/config response)",
     };
   }

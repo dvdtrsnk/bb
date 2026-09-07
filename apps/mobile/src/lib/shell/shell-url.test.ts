@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildShellUrl,
   isExternallyOpenable,
+  isSameSiteRedirect,
   isShellNavigation,
   shellPathFromUrl,
 } from "./shell-url";
@@ -84,6 +85,41 @@ describe("shellPathFromUrl", () => {
 
   it("returns null for a URL outside the profile", () => {
     expect(shellPathFromUrl("https://example.com/x", ROOT)).toBeNull();
+  });
+});
+
+describe("isSameSiteRedirect", () => {
+  const AUTHELIA_PROFILE = "https://bb-main.tresnak.cc";
+
+  it("flags a reverse-proxy login subdomain on the profile's own domain", () => {
+    expect(
+      isSameSiteRedirect(
+        "https://auth.tresnak.cc/?rd=https://bb-main.tresnak.cc/",
+        AUTHELIA_PROFILE,
+      ),
+    ).toBe(true);
+  });
+
+  it("does not flag the profile's own origin (isShellNavigation already covers it)", () => {
+    expect(
+      isSameSiteRedirect("https://bb-main.tresnak.cc/", AUTHELIA_PROFILE),
+    ).toBe(false);
+  });
+
+  it("does not flag a third-party OAuth provider", () => {
+    expect(
+      isSameSiteRedirect(
+        "https://github.com/login/oauth/authorize",
+        AUTHELIA_PROFILE,
+      ),
+    ).toBe(false);
+  });
+
+  it("refuses plain http and a URL that will not parse", () => {
+    expect(
+      isSameSiteRedirect("http://auth.tresnak.cc/", AUTHELIA_PROFILE),
+    ).toBe(false);
+    expect(isSameSiteRedirect("not a url", AUTHELIA_PROFILE)).toBe(false);
   });
 });
 

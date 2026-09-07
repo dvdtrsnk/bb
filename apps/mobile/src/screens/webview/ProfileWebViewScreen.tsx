@@ -29,6 +29,7 @@ import { nativeSessionCache } from "@/lib/native";
 import {
   buildShellUrl,
   isExternallyOpenable,
+  isSameSiteRedirect,
   isShellNavigation,
   resolveShellLoadPath,
   resolveShellScreenState,
@@ -42,6 +43,7 @@ import { firstParam, settingsSectionHref } from "@/screens/shell/hrefs";
 import { useTheme } from "@/theme";
 import { Button, EmptyStatePanel, Spinner, Text } from "@/ui";
 import { Linking } from "react-native";
+import { AuthLoginModal } from "./AuthLoginModal";
 import { useShellBridge } from "./useShellBridge";
 
 const APP_VERSION =
@@ -78,6 +80,9 @@ export function ProfileWebViewScreen() {
     scope: string;
     path: string;
   } | null>(null);
+  const [authChallengeUrl, setAuthChallengeUrl] = useState<string | null>(
+    null,
+  );
 
   const loadScope =
     profile === null
@@ -341,6 +346,14 @@ export function ProfileWebViewScreen() {
         }}
         onShouldStartLoadWithRequest={(request) => {
           if (isShellNavigation(request.url, profile.serverUrl)) return true;
+          if (
+            request.isTopFrame &&
+            request.navigationType !== "click" &&
+            isSameSiteRedirect(request.url, profile.serverUrl)
+          ) {
+            setAuthChallengeUrl(request.url);
+            return false;
+          }
           if (isExternallyOpenable(request.url)) {
             void Linking.openURL(request.url).catch(() => undefined);
           }
@@ -387,6 +400,16 @@ export function ProfileWebViewScreen() {
           </Button>
         </View>
       ) : null}
+      <AuthLoginModal
+        visible={authChallengeUrl !== null}
+        serverUrl={profile.serverUrl}
+        initialUrl={authChallengeUrl ?? undefined}
+        onDismiss={() => setAuthChallengeUrl(null)}
+        onAuthenticated={() => {
+          setAuthChallengeUrl(null);
+          retry();
+        }}
+      />
     </WebViewKeyboardFrame>
   );
 }
