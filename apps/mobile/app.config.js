@@ -19,6 +19,8 @@
 // Every value can be overridden by an environment variable, so the same tree
 // builds for a different Apple team or a different domain without edits.
 
+const { execFileSync } = require("node:child_process");
+
 const BUNDLE_ID = process.env.BB_IOS_BUNDLE_ID ?? "com.tresnak.bbmobile";
 
 const WEBCREDENTIAL_DOMAINS = (
@@ -41,15 +43,42 @@ function appVersion(fallback) {
   }
 }
 
+function git(args, fallback) {
+  try {
+    return execFileSync("git", args, {
+      cwd: __dirname,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return fallback;
+  }
+}
+
+// The marketing version only moves when bb cuts a release, so on nightlies it
+// says nothing about which build a phone is running. The build number carries
+// that instead: commit count is monotonic, and iOS refuses anything but digits
+// and dots here, which rules out the nightly version string itself
+// (`0.42.2-nightly.<run id>.1`). The exact commit rides along in Info.plist,
+// where `plutil -extract BBSourceCommit raw` can read it back off a build.
+function buildNumber() {
+  return process.env.BB_IOS_BUILD_NUMBER ?? git(["rev-list", "--count", "HEAD"], "1");
+}
+
 module.exports = ({ config }) => {
   config.version = appVersion(config.version);
 
   config.ios = {
     ...config.ios,
     bundleIdentifier: BUNDLE_ID,
+    buildNumber: buildNumber(),
     associatedDomains: WEBCREDENTIAL_DOMAINS.map(
       (domain) => `webcredentials:${domain}`,
     ),
+    infoPlist: {
+      ...config.ios?.infoPlist,
+      BBSourceCommit: git(["rev-parse", "--short", "HEAD"], "unknown"),
+    },
   };
 
   config.android = {
