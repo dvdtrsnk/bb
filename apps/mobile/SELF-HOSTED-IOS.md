@@ -44,22 +44,20 @@ manage identifiers.
 | `BB_IOS_DEVICE` | the only paired device | target for install (`xcrun devicectl list devices`) |
 | `BB_IOS_CONFIGURATION` | `Release` | Xcode configuration |
 
-## Moving to a newer nightly
+## Updating the fork branch
 
-The server side (`compose/bb` in the VPS repo) tracks the npm `nightly`
-dist-tag; the git equivalent is the `desktop-nightly` tag. To find the commit a
-running server was built from, take the run id out of its version
-(`0.42.2-nightly.<run id>.1`) and look up that Actions run's `head_sha`.
+The `tresnak-ios` branch is based on the fork's `main`. It includes the iOS
+changes above.
 
 ```bash
-git fetch upstream +refs/tags/desktop-nightly:refs/tags/upstream-desktop-nightly --force
-git rebase upstream-desktop-nightly           # on this branch
-cd apps/mobile && pnpm ios:device --clean
+git fetch origin
+git switch tresnak-ios
+git rebase origin/main
 ```
 
-Rebase conflicts can only come from the five source files in the table above —
-`app.config.js`, the plugin and the build script are new files upstream does
-not have.
+Resolve conflicts in the affected mobile files, rerun their tests and
+typechecks, then rebuild the native app. Package versions remain upstream
+versions; `BBSourceCommit` in Info.plist identifies the source commit.
 
 If `expo prebuild` fails with
 
@@ -88,3 +86,28 @@ associated with the app: the `webcredentials` entitlement above, plus an
 SSO, listing `<team id>.<bundle id>`. On construct that is the `well-known`
 service in `compose/edge`. Passwords can only be *used* in a WKWebView, never
 saved from one — save the credential in Safari first.
+
+## Background requests must not report an authenticated session that ended
+
+Once inside the app, native code keeps polling the server directly through
+`createMobileSdk`/`createMobileFetch` (`src/lib/sdk/mobile-fetch.ts`) —
+`useSystemConfig` for the theme palette, session verification, and so on —
+independently of the WebView. React Native's `fetch` has no equivalent of
+Electron's `redirect: "error"` or a Node `fetch`'s ability to observe a 3xx
+before it is followed: it is built on XMLHttpRequest, which always follows
+redirects transparently. So once the Authentik session cookie shared with the
+WebView expires, these native requests silently follow the forward-auth
+redirect to `auth.tresnak.cc` and get back a `200 text/html` login page
+instead of the JSON the caller expected, instead of a clean 401/403.
+
+`createMobileFetch` treats that case the same as a real 401/403: it compares
+the *final* `response.url` (XHR's `responseURL`, which whatwg-fetch exposes)
+against the requested server's origin with the same `isSameSiteRedirect`
+check the WebView uses (`src/lib/shell/shell-url.ts`), and if the request
+silently landed on the identity provider it fires `onAuthFailure` and returns
+a synthetic 401 instead of the login page's HTML. That feeds the existing
+auth-failure/session-verification plumbing in
+`src/lib/connection/active-profile-connector.ts`, the same path a direct
+401/403 already took, so a lapsed session now surfaces the same in-app
+re-auth prompt everywhere instead of only when the WebView itself happens to
+navigate through the redirect.

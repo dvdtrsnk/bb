@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { validateDirectServerUrl } from "../profiles/direct-url";
+import { isSameSiteRedirect } from "../shell/shell-url";
 import { MOBILE_APP_SURFACE_HEADER } from "./app-surface";
 
 const SERVER_MOVED_STATUS = 410;
@@ -18,6 +19,7 @@ export interface ServerMovedResponse {
 }
 
 export interface MobileFetchOptions {
+  serverUrl?: string;
   onAuthFailure?: (status: number) => void;
   onServerMoved?: (moved: ServerMovedResponse) => void;
 }
@@ -42,6 +44,8 @@ export async function readServerMovedResponse(
   };
 }
 
+const IDP_REDIRECT_AUTH_FAILURE_STATUS = 401;
+
 export function createMobileFetch(
   baseFetch: typeof fetch,
   options: MobileFetchOptions = {},
@@ -55,6 +59,18 @@ export function createMobileFetch(
     const response = await baseFetch(input, { ...init, headers });
     if (response.status === 401 || response.status === 403) {
       options.onAuthFailure?.(response.status);
+      return response;
+    }
+    if (
+      options.serverUrl !== undefined &&
+      response.url.length > 0 &&
+      isSameSiteRedirect(response.url, options.serverUrl)
+    ) {
+      options.onAuthFailure?.(IDP_REDIRECT_AUTH_FAILURE_STATUS);
+      return new Response(null, {
+        status: IDP_REDIRECT_AUTH_FAILURE_STATUS,
+        statusText: "Unauthorized",
+      });
     }
     if (options.onServerMoved && response.status === SERVER_MOVED_STATUS) {
       const moved = await readServerMovedResponse(response);
