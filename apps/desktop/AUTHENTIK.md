@@ -34,3 +34,18 @@ Validate with a separate desktop profile: open the protected server, complete
 login and OTP, confirm the application loads, then reload and relaunch to
 verify session persistence. A synthetic cookie-rotation check alone does not
 prove a complete production Authentik login.
+
+## Background requests must not restart login
+
+Focusing a desktop window refreshes `/api/v1/system/config` using Electron's
+shared cookie session. Before authentication, forward-auth redirects that API
+request to the identity provider. Following it starts a new login flow in the
+same session and invalidates the form already visible in the window. Switching
+to an OTP application and back could therefore make an OTP submission fail
+with "No identification data provided."
+
+`fetchDesktopSystemConfig` uses `redirect: "error"` so both focus-triggered
+refreshes and periodic polling stop at the protected API's redirect. Normal
+window navigation still follows the interactive login. Once authenticated,
+configuration requests return JSON and resume normally. The regression test
+uses a real HTTP redirect endpoint and proves it is never visited.

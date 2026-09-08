@@ -32,3 +32,21 @@ export function parseDesktopSystemConfig(
   }
   return { keybindings };
 }
+
+export async function fetchDesktopSystemConfig(args: {
+  fetchImpl: typeof fetch;
+  serverUrl: string;
+}): Promise<DesktopSystemConfig> {
+  const url = new URL(args.serverUrl);
+  url.pathname = "/api/v1/system/config";
+  url.search = "";
+  url.hash = "";
+  const response = await args.fetchImpl(url.toString(), { redirect: "error" });
+  if (!response.ok) {
+    throw new Error(
+      `System config request failed with HTTP ${response.status}`,
+    );
+  }
+  const payload: unknown = await response.json();
+  return parseDesktopSystemConfig(payload);
+}
