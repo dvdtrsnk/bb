@@ -87,3 +87,28 @@ associated with the app: the `webcredentials` entitlement above, plus an
 SSO, listing `<team id>.<bundle id>`. On construct that is the `well-known`
 service in `compose/edge`. Passwords can only be *used* in a WKWebView, never
 saved from one — save the credential in Safari first.
+
+## Background requests must not report an authenticated session that ended
+
+Once inside the app, native code keeps polling the server directly through
+`createMobileSdk`/`createMobileFetch` (`src/lib/sdk/mobile-fetch.ts`) —
+`useSystemConfig` for the theme palette, session verification, and so on —
+independently of the WebView. React Native's `fetch` has no equivalent of
+Electron's `redirect: "error"` or a Node `fetch`'s ability to observe a 3xx
+before it is followed: it is built on XMLHttpRequest, which always follows
+redirects transparently. So once the Authentik session cookie shared with the
+WebView expires, these native requests silently follow the forward-auth
+redirect to `auth.tresnak.cc` and get back a `200 text/html` login page
+instead of the JSON the caller expected, instead of a clean 401/403.
+
+`createMobileFetch` treats that case the same as a real 401/403: it compares
+the *final* `response.url` (XHR's `responseURL`, which whatwg-fetch exposes)
+against the requested server's origin with the same `isSameSiteRedirect`
+check the WebView uses (`src/lib/shell/shell-url.ts`), and if the request
+silently landed on the identity provider it fires `onAuthFailure` and returns
+a synthetic 401 instead of the login page's HTML. That feeds the existing
+auth-failure/session-verification plumbing in
+`src/lib/connection/active-profile-connector.ts`, the same path a direct
+401/403 already took, so a lapsed session now surfaces the same in-app
+re-auth prompt everywhere instead of only when the WebView itself happens to
+navigate through the redirect.

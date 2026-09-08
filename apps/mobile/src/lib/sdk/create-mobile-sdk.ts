@@ -26,6 +26,7 @@ export function createMobileSdk(
 ): MobileSdk {
   const baseFetch = options.fetch ?? ((input, init) => fetch(input, init));
   const mobileFetch = createMobileFetch(baseFetch, {
+    serverUrl: profile.serverUrl,
     onAuthFailure: options.onAuthFailure,
   });
   const sdk = createBrowserBbSdk({
