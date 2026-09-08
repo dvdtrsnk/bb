@@ -1,3 +1,4 @@
+import { installAuthentikCookieCompat } from "./desktop-authentik-cookie-compat.js";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants } from "node:fs";
 import { arch, homedir, release, type as osType } from "node:os";
@@ -2089,6 +2090,7 @@ async function runDesktopApp(): Promise<void> {
   });
 
   await app.whenReady();
+  installAuthentikCookieCompat(session.defaultSession);
   if (app.isPackaged) {
     await session.defaultSession.clearCache();
   }

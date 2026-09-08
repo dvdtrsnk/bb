@@ -44,22 +44,21 @@ manage identifiers.
 | `BB_IOS_DEVICE` | the only paired device | target for install (`xcrun devicectl list devices`) |
 | `BB_IOS_CONFIGURATION` | `Release` | Xcode configuration |
 
-## Moving to a newer nightly
+## Updating the fork branch
 
-The server side (`compose/bb` in the VPS repo) tracks the npm `nightly`
-dist-tag; the git equivalent is the `desktop-nightly` tag. To find the commit a
-running server was built from, take the run id out of its version
-(`0.42.2-nightly.<run id>.1`) and look up that Actions run's `head_sha`.
+The `tresnak-ios` branch is based on the fork's `main`. It includes the iOS
+changes above and the desktop Authentik cookie compatibility helper described
+in [the desktop notes](../desktop/AUTHENTIK.md).
 
 ```bash
-git fetch upstream +refs/tags/desktop-nightly:refs/tags/upstream-desktop-nightly --force
-git rebase upstream-desktop-nightly           # on this branch
-cd apps/mobile && pnpm ios:device --clean
+git fetch origin
+git switch tresnak-ios
+git rebase origin/main
 ```
 
-Rebase conflicts can only come from the five source files in the table above —
-`app.config.js`, the plugin and the build script are new files upstream does
-not have.
+Resolve conflicts in the affected mobile and desktop files, rerun their tests
+and typechecks, then rebuild the native applications. Package versions remain
+upstream versions; the desktop About panel identifies the source commit.
 
 If `expo prebuild` fails with
 
