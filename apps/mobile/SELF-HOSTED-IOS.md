@@ -47,8 +47,7 @@ manage identifiers.
 ## Updating the fork branch
 
 The `tresnak-ios` branch is based on the fork's `main`. It includes the iOS
-changes above and the desktop Authentik cookie compatibility helper described
-in [the desktop notes](../desktop/AUTHENTIK.md).
+changes above.
 
 ```bash
 git fetch origin
@@ -56,9 +55,9 @@ git switch tresnak-ios
 git rebase origin/main
 ```
 
-Resolve conflicts in the affected mobile and desktop files, rerun their tests
-and typechecks, then rebuild the native applications. Package versions remain
-upstream versions; the desktop About panel identifies the source commit.
+Resolve conflicts in the affected mobile files, rerun their tests and
+typechecks, then rebuild the native app. Package versions remain upstream
+versions; `BBSourceCommit` in Info.plist identifies the source commit.
 
 If `expo prebuild` fails with
 

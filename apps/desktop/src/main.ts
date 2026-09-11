@@ -1,4 +1,3 @@
-import { installAuthentikCookieCompat } from "./desktop-authentik-cookie-compat.js";
 import { randomUUID } from "node:crypto";
 import { accessSync, constants as fsConstants } from "node:fs";
 import { arch, homedir, release, type as osType } from "node:os";
@@ -178,7 +177,7 @@ import {
   BB_DESKTOP_BROWSER_IMPORT_COOKIES_CHANNEL,
   BB_DESKTOP_BROWSER_OPEN_FULL_DISK_ACCESS_SETTINGS_CHANNEL,
 } from "./desktop-browser-ipc.js";
-import { fetchDesktopSystemConfig } from "./desktop-system-config.js";
+import { parseDesktopSystemConfig } from "./desktop-system-config.js";
 import { ensurePackagedUserShellPath } from "./desktop-shell-path.js";
 import { resolveDesktopReloadShortcut } from "./desktop-reload-shortcut.js";
 import {
@@ -295,6 +294,11 @@ interface ResolveDesktopWindowUrlArgs {
 interface ResolveDesktopUpdateFeedUrlArgs {
   env: NodeJS.ProcessEnv;
   platform: BbDesktopInfo["platform"];
+}
+
+interface FetchSystemConfigArgs {
+  fetchImpl: typeof fetch;
+  serverUrl: string;
 }
 
 interface RefreshSystemConfigArgs {
@@ -841,6 +845,14 @@ function setCurrentRuntime(runtime: DesktopRuntime | null): void {
   sendDesktopInfoChanged();
 }
 
+function formatApiUrl(args: FetchSystemConfigArgs): string {
+  const url = new URL(args.serverUrl);
+  url.pathname = "/api/v1/system/config";
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
+
 function formatRealtimeUrl(serverUrl: string): string {
   const url = new URL(serverUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
@@ -848,6 +860,17 @@ function formatRealtimeUrl(serverUrl: string): string {
   url.search = "";
   url.hash = "";
   return url.toString();
+}
+
+async function fetchSystemConfig(args: FetchSystemConfigArgs) {
+  const response = await args.fetchImpl(formatApiUrl(args));
+  if (!response.ok) {
+    throw new Error(
+      `System config request failed with HTTP ${response.status}`,
+    );
+  }
+  const payload: unknown = await response.json();
+  return parseDesktopSystemConfig(payload);
 }
 
 function createSystemConfigSync(serverUrl: string): SystemConfigSync {
@@ -934,7 +957,7 @@ async function refreshSystemConfig(
   const token = systemConfigRefreshToken + 1;
   systemConfigRefreshToken = token;
   try {
-    const config = await fetchDesktopSystemConfig({
+    const config = await fetchSystemConfig({
       fetchImpl: args.fetchImpl,
       serverUrl: args.serverUrl,
     });
@@ -2066,7 +2089,6 @@ async function runDesktopApp(): Promise<void> {
   });
 
   await app.whenReady();
-  installAuthentikCookieCompat(session.defaultSession);
   if (app.isPackaged) {
     await session.defaultSession.clearCache();
   }
