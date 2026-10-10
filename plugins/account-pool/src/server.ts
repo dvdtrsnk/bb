@@ -4,6 +4,10 @@ import {
   type RetryAvailability,
 } from "./retry-contract.js";
 import { modelFamily } from "./quota.js";
+import {
+  dispatchAvailabilityContract,
+  dispatchAvailabilityMethod,
+} from "./dispatch-contract.js";
 import { modelFamilySchema } from "./contracts.js";
 import { registerUsageSource } from "./usage-source.js";
 import {
@@ -287,6 +291,30 @@ export function createAccountPoolPlugin(
       }
       return operations.hasUsableEnabledAccount(provider);
     };
+    bb.rpc.register(
+      dispatchAvailabilityContract,
+      {
+        [dispatchAvailabilityMethod]: async ({
+          providerId,
+          model,
+        }): Promise<RetryAvailability> => {
+          const provider =
+            providerId === "claude-code"
+              ? "claude"
+              : providerId === "codex"
+                ? "codex"
+                : null;
+          if (provider === null || !(await canServe(provider)))
+            return { kind: "not-routed" };
+          return hub.dispatchAvailability(provider, modelFamily(model));
+        },
+      },
+      {
+        experimental_discoverable: true,
+        experimental_description:
+          "Account Pooler model-specific availability for new turns.",
+      },
+    );
     const markerEntries = (token: string): PoolEnvEntry[] => [
       {
         name: PARENT_URL_ENV,
@@ -466,24 +494,37 @@ export function createAccountPoolPlugin(
       },
       { auth: "none" },
     );
-    bb.http.route(
-      "GET",
-      "/retry-availability",
-      async (context) => {
-        if ((await hub.authenticate(context.req.raw)) === null)
-          return new Response(null, { status: 401 });
-        const query = z
-          .object({ provider: routedProviderSchema, family: modelFamilySchema })
-          .safeParse(
-            Object.fromEntries(new URL(context.req.raw.url).searchParams),
+    for (const kind of ["retry", "dispatch"] as const) {
+      bb.http.route(
+        "GET",
+        `/${kind}-availability`,
+        async (context) => {
+          if ((await hub.authenticate(context.req.raw)) === null)
+            return new Response(null, { status: 401 });
+          const query = z
+            .object({
+              provider: routedProviderSchema,
+              family: modelFamilySchema,
+            })
+            .safeParse(
+              Object.fromEntries(new URL(context.req.raw.url).searchParams),
+            );
+          if (!query.success) return new Response(null, { status: 400 });
+          return Response.json(
+            kind === "retry"
+              ? await hub.retryAvailability(
+                  query.data.provider,
+                  query.data.family,
+                )
+              : await hub.dispatchAvailability(
+                  query.data.provider,
+                  query.data.family,
+                ),
           );
-        if (!query.success) return new Response(null, { status: 400 });
-        return Response.json(
-          await hub.retryAvailability(query.data.provider, query.data.family),
-        );
-      },
-      { auth: "none" },
-    );
+        },
+        { auth: "none" },
+      );
+    }
     bb.http.route("HEAD", "/api/hello", () => helloResponse(), {
       auth: "none",
     });

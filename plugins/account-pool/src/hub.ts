@@ -1267,11 +1267,26 @@ export class AccountPoolHub {
     provider: PoolProvider,
     family: ModelFamily,
   ): Promise<RetryAvailability> {
+    return this.availabilityFor(provider, family, "retry");
+  }
+
+  async dispatchAvailability(
+    provider: PoolProvider,
+    family: ModelFamily,
+  ): Promise<RetryAvailability> {
+    return this.availabilityFor(provider, family, "dispatch");
+  }
+
+  private async availabilityFor(
+    provider: PoolProvider,
+    family: ModelFamily,
+    kind: "retry" | "dispatch",
+  ): Promise<RetryAvailability> {
     const parent = this.options.getParentRoute();
     if (parent !== null) {
       try {
         const response = await this.options.fetch(
-          `${parent.baseUrl}/retry-availability?provider=${provider}&family=${family}`,
+          `${parent.baseUrl}/${kind}-availability?provider=${provider}&family=${family}`,
           {
             headers: { [HUB_TOKEN_HEADER]: parent.token },
             signal: AbortSignal.timeout(2_000),
@@ -1288,6 +1303,24 @@ export class AccountPoolHub {
     const accounts = (await this.options.accounts.list()).filter(
       (account) => account.provider === provider,
     );
+    if (kind === "dispatch") {
+      const usable: Account[] = [];
+      for (const account of accounts) {
+        if (!account.enabled) continue;
+        try {
+          await this.options.accounts.readSecret(account.id);
+          usable.push(account);
+        } catch {
+          continue;
+        }
+      }
+      await this.refreshExhaustedUsage(
+        new Set(usable.map((account) => account.id)),
+        new Set(),
+        family,
+      );
+      return this.accountAvailability(usable, family);
+    }
     return this.accountAvailability(accounts, family);
   }
 

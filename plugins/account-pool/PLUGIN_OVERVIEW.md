@@ -38,3 +38,19 @@ Experimental: routing, storage, and CLI may change.
 ## Automatic retries
 
 Provider Retry uses pool recovery times. Inspect `bb provider-retry status` or `bb provider-retry explain <thread-id>`.
+
+## New-turn availability
+
+The discoverable `provider-dispatch.v1.availability` plugin RPC accepts
+`{ "providerId": "claude-code" | "codex", "model": "..." }` before a thread
+exists. It returns `not-routed` when new turns use provider-local credentials,
+`ready` when the active pool route has a usable account, `blocked` with its
+earliest recovery timestamp, or `unavailable` with a structured reason. Accounts
+are shared across hosts. The check uses model-family limits, credits, extra usage,
+holds and parent routing; exhausted OAuth observations use the existing refresh
+rate limit. It neither chooses an account nor changes conversation affinity.
+The parent endpoint requires the same hub authentication as routed requests.
+
+Inspect it with `bb plugin rpc call account-pool provider-dispatch.v1.availability
+--input-file <availability.json> --json`, where the file contains
+`{"providerId":"codex","model":"gpt-5"}`.

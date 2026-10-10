@@ -1,7 +1,9 @@
 import {
   retryAvailabilityMethod,
+  retryAvailabilitySchema,
   type RetryAvailability,
 } from "./retry-contract.js";
+import { dispatchAvailabilityMethod } from "./dispatch-contract.js";
 import {
   usageMeasurementSchema,
   usageResourceListSchema,
@@ -4133,6 +4135,23 @@ describe("Account Pool plugin", () => {
           ),
         ).toEqual(expected);
         expect(
+          await fixture.host.harness.behavior.callRpc(
+            dispatchAvailabilityMethod,
+            { providerId: "claude-code", model: "claude-opus-4-1" },
+          ),
+        ).toEqual(expected);
+        if (
+          status === 429 &&
+          headers["anthropic-ratelimit-unified-7d_opus-status"]
+        ) {
+          expect(
+            await fixture.host.harness.behavior.callRpc(
+              dispatchAvailabilityMethod,
+              { providerId: "claude-code", model: "claude-sonnet-4" },
+            ),
+          ).toEqual({ kind: "ready" });
+        }
+        expect(
           await fixture.host.harness.behavior.callRpc(retryAvailabilityMethod, {
             ...input,
             requestId: "another-request",
@@ -4147,6 +4166,12 @@ describe("Account Pool plugin", () => {
             input,
           ),
         ).toEqual({ kind: "unavailable", reason: "no-enabled-account" });
+        expect(
+          await fixture.host.harness.behavior.callRpc(
+            dispatchAvailabilityMethod,
+            { providerId: "claude-code", model: "claude-opus-4-1" },
+          ),
+        ).toEqual({ kind: "not-routed" });
         expect(
           (
             await fixture.host.harness.behavior.fetchHttp(
@@ -4164,8 +4189,51 @@ describe("Account Pool plugin", () => {
           kind: "unavailable",
           reason: "no-enabled-account",
         });
+        expect(
+          (
+            await fixture.host.harness.behavior.fetchHttp(
+              "GET",
+              "/dispatch-availability?provider=claude&family=opus",
+            )
+          ).status,
+        ).toBe(401);
       },
     );
+
+    it("checks new dispatches without a thread or changing account affinity", async () => {
+      const fixture = await createFixture({
+        upstreamUrl: "https://upstream.example",
+      });
+      const input = { providerId: "claude-code", model: "claude-opus-4-1" };
+      expect(
+        await fixture.host.harness.behavior.callRpc(
+          dispatchAvailabilityMethod,
+          input,
+        ),
+      ).toEqual({ kind: "ready" });
+      expect(
+        await fixture.host.harness.behavior.callRpc(
+          dispatchAvailabilityMethod,
+          { providerId: "codex", model: "gpt-5" },
+        ),
+      ).toEqual({ kind: "not-routed" });
+      expect(
+        await fixture.host.harness.behavior.callRpc(
+          dispatchAvailabilityMethod,
+          { providerId: "another", model: "any" },
+        ),
+      ).toEqual({ kind: "not-routed" });
+      await fixture.host.harness.behavior.callRpc("routing.set", {
+        provider: "claude",
+        enabled: false,
+      });
+      expect(
+        await fixture.host.harness.behavior.callRpc(
+          dispatchAvailabilityMethod,
+          input,
+        ),
+      ).toEqual({ kind: "not-routed" });
+    });
 
     it.each(["claude", "codex"] as const)(
       "reports the earliest usable %s account after all of its limits reset",
@@ -6255,6 +6323,13 @@ describe("sequential pool recovery", () => {
       expect(response.status).toBe(expected);
       await response.text();
       expect(calls).toBe(expected === 200 ? 1 : 0);
+      const availability = retryAvailabilitySchema.parse(
+        await fixture.host.harness.behavior.callRpc(
+          dispatchAvailabilityMethod,
+          { providerId: "codex", model: "gpt-5" },
+        ),
+      );
+      expect(availability.kind === "ready").toBe(expected === 200);
       const report = statusSchema.parse(
         await fixture.host.harness.behavior.callRpc("status.get", null),
       );
@@ -6454,6 +6529,13 @@ describe("sequential pool recovery", () => {
       expect(response.status).toBe(expectedStatus);
       await response.text();
       expect(calls).toEqual(expectedStatus === 200 ? ["/v1/messages"] : []);
+      const availability = retryAvailabilitySchema.parse(
+        await fixture.host.harness.behavior.callRpc(
+          dispatchAvailabilityMethod,
+          { providerId: "claude-code", model: "claude-opus-4-1" },
+        ),
+      );
+      expect(availability.kind === "ready").toBe(expectedStatus === 200);
       const status = await fixture.host.harness.behavior.runCli([
         "status",
         "--json",
@@ -6973,7 +7055,13 @@ it("publishes pooled usage without a display plugin and does not invent unobserv
     fixture.host.harness.registrations.experimental_publishedRpcMethods.map(
       (entry) => entry.method,
     ),
-  ).toEqual(expect.arrayContaining([usageListMethod, usageFetchMethod]));
+  ).toEqual(
+    expect.arrayContaining([
+      usageListMethod,
+      usageFetchMethod,
+      dispatchAvailabilityMethod,
+    ]),
+  );
 });
 
 it("publishes an empty shared usage group before any accounts or settings are configured", async () => {
@@ -7082,7 +7170,7 @@ describe("Account Pool nested proxy", () => {
     return host;
   }
 
-  it("reads retry availability from the parent and fails closed on an unsupported parent", async () => {
+  it("reads retry and new-dispatch availability from the parent and fails closed on an unsupported parent", async () => {
     let supported = true;
     const parent = await startUpstream((request, response) => {
       expect(request.headers["x-bb-account-pool-token"]).toBe(PARENT_TOKEN);
@@ -7090,9 +7178,10 @@ describe("Account Pool nested proxy", () => {
       if (request.url === "/availability")
         response.end(JSON.stringify({ claude: true, codex: true }));
       else {
-        expect(request.url).toBe(
+        expect([
           "/retry-availability?provider=claude&family=opus",
-        );
+          "/dispatch-availability?provider=claude&family=opus",
+        ]).toContain(request.url);
         response.statusCode = supported ? 200 : 404;
         response.end(
           JSON.stringify({ kind: "blocked", retryAt: 1_800_003_600_000 }),
@@ -7106,9 +7195,25 @@ describe("Account Pool nested proxy", () => {
     expect(
       await child.harness.behavior.callRpc(retryAvailabilityMethod, input),
     ).toEqual({ kind: "blocked", retryAt: 1_800_003_600_000 });
+    const dispatchInput = {
+      providerId: "claude-code",
+      model: "claude-opus-4-1",
+    };
+    expect(
+      await child.harness.behavior.callRpc(
+        dispatchAvailabilityMethod,
+        dispatchInput,
+      ),
+    ).toEqual({ kind: "blocked", retryAt: 1_800_003_600_000 });
     supported = false;
     expect(
       await child.harness.behavior.callRpc(retryAvailabilityMethod, input),
+    ).toEqual({ kind: "unavailable", reason: "source-unavailable" });
+    expect(
+      await child.harness.behavior.callRpc(
+        dispatchAvailabilityMethod,
+        dispatchInput,
+      ),
     ).toEqual({ kind: "unavailable", reason: "source-unavailable" });
   });
 
